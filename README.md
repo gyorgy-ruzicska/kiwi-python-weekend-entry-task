@@ -18,7 +18,7 @@ In addition to the dataset, the script takes some additional arguments as input:
 | `destination` | string  | Destination airport code. |                              |
 | `bags`        | integer | Number of requested bags. | Optional (defaults to 0)     |
 | `return`      | boolean | Is it a return flight?   | Optional (defaults to false) |
-| `days_of_stay`        | integer | In case of return trip, minimum days of stay at destination. In case of multicity trip, minimum days of stay at middle stop.| Optional (defaults to 0)     |
+| `min_days_of_stay`        | integer | In case of return trip, minimum days of stay at destination. In case of multicity trip, minimum days of stay at middle stop.| Optional (defaults to 0)     |
 | `max_layover_hours`        | integer | Maximum layover hours between flights. | Optional (defaults to 6)     |
 | `max_travel_hours`        | integer | Maximum travel hours in a route. 0 for no restrictions. | Optional (defaults to 0)     |
 | `max_nr_changes`        | integer | Maximum number of changes in a route.  0 for direct flights only, -1 for no restrictions. | Optional (defaults to -1)     |
@@ -37,7 +37,7 @@ In addition to the dataset, the script takes some additional arguments as input:
 ##### Performing trip search
 
 ```
-python -m solution <path_to_dataset> <origin> <destination> [--bags=<number>] [--return] [--days_of_stay=<number>] [--max_layover_hours=<number>]  [--max_travel_hours=<number>]  [--max_nr_changes=<number>] [--day_of_departure=<string>] [--multicity]
+python -m solution <path_to_dataset> <origin> <destination> [--bags=<number>] [--return] [--min_days_of_stay=<number>] [--max_layover_hours=<number>]  [--max_travel_hours=<number>]  [--max_nr_changes=<number>] [--day_of_departure=<string>] [--multicity]
 [--middle_destination=<string>]
 ```
 
@@ -62,10 +62,10 @@ The output will be a json-compatible structured list of trips sorted by price. T
 
 ## Example behaviour
 
-To perform a flight search on route GXV -> IUT (we know the airports are present in the dataset) with two bags, multicity with. We run the thing:
+To perform a flight search on route GXV -> IUT (we know the airports are present in the dataset) with two bags, maximum 5 hours layover, multicity with middle destination LOM and minimum 9 days of stay at the middle destination, we run the following:
 
 ```bash
-python3 -m solution example/example2.csv GXV IUT --bags=2 --multicity --middle_destination=LOM --days_of_stay=9 --max_layover_hours=1
+python3 -m solution example/example2.csv GXV IUT --bags=2 --multicity --middle_destination=LOM --min_days_of_stay=9 --max_layover_hours=5
 ```
 and get the following result:
 
@@ -134,6 +134,49 @@ and get the following result:
         "total_price": 120.0,
         "travel_time_to_LOM": "1:45:00",
         "travel_time_to_IUT": "2:15:00"
+    },
+    {
+        "flights": [
+            {
+                "flight_no": "DX390",
+                "origin": "GXV",
+                "destination": "YOT",
+                "departure": "2021-09-01T19:15:00",
+                "arrival": "2021-09-01T23:20:00",
+                "base_price": "133.0",
+                "bag_price": "9",
+                "bags_allowed": "2"
+            },
+            {
+                "flight_no": "QG767",
+                "origin": "YOT",
+                "destination": "LOM",
+                "departure": "2021-09-02T00:55:00",
+                "arrival": "2021-09-02T06:45:00",
+                "base_price": "357.0",
+                "bag_price": "10",
+                "bags_allowed": "2"
+            },
+            {
+                "flight_no": "SJ609",
+                "origin": "LOM",
+                "destination": "IUT",
+                "departure": "2021-09-13T22:35:00",
+                "arrival": "2021-09-14T00:50:00",
+                "base_price": "48.0",
+                "bag_price": "14",
+                "bags_allowed": "2"
+            }
+        ],
+        "bags_allowed": 2,
+        "bags_count": 2,
+        "destination": "IUT",
+        "middle_destination": "LOM",
+        "origin": "GXV",
+        "total_price": 604.0,
+        "travel_time_to_LOM": "11:30:00",
+        "travel_time_to_IUT": "2:15:00"
     }
 ]
+
 ```

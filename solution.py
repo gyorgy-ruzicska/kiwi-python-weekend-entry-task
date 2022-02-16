@@ -25,7 +25,7 @@ def parse_arguments():
     parser.add_argument('destination', type=str, help='Destination airport code')
     parser.add_argument('--bags', type=int, help='Number of requested bags', default=0)
     parser.add_argument('--return', action='store_true', help='Is it a return flight?', dest='is_return')
-    parser.add_argument('--days_of_stay', type=int, help=('In case of return trip, minimum days of stay at destination. '
+    parser.add_argument('--min_days_of_stay', type=int, help=('In case of return trip, minimum days of stay at destination. '
                                                           'In case of multicity trip, minimum days of stay at mid stop.'), default=0)
     parser.add_argument('--max_layover_hours', type=int, help='Maximum layover hours between flights.', default=6)
     parser.add_argument('--max_travel_hours', type=int, help=('Maximum travel hours in a route. '
@@ -41,7 +41,7 @@ def parse_arguments():
 
     return [input_arguments.dataset, input_arguments.origin,
             input_arguments.destination, input_arguments.bags,
-            input_arguments.is_return, input_arguments.days_of_stay,
+            input_arguments.is_return, input_arguments.min_days_of_stay,
             input_arguments.max_layover_hours, input_arguments.max_travel_hours,
             input_arguments.max_nr_changes, input_arguments.day_of_departure,
             input_arguments.is_multicity, input_arguments.mid_dst]
@@ -95,11 +95,11 @@ def isNotVisited(x, path):
 def isLayoverCompatible(x, path, max_layover_hours = 6):
     """
     Describe: Checks if layover time between new flight's departure 'x' and the last arrival of last element of
-              'path' list does not exceed max_layover_hours
+              'path' list does not exceed max_layover_hours but exceeds 1 hour
     Input: x: String of departure with format "%Y-%m-%dT%H:%M:%S" of flight to be appended
            path: List of routes (list) containing flights (dict)
            max_layover_hours: Integer, maximum time (hours) difference between two consecutive flights
-    Output: 1 if does not exceed, 0 if exceeds
+    Output: 1 if meets criteria, 0 otherwise
     """
     try:
         path[-1][-1]["arrival"]
@@ -114,19 +114,19 @@ def isLayoverCompatible(x, path, max_layover_hours = 6):
 
     return 0
 
-def isStayLengthCompatible(x, path, days_of_stay = 0):
+def isStayLengthCompatible(x, path, min_days_of_stay = 0):
     """
     Describe: Check if time difference between new flight's departure 'x' and the last arrival of first element of
-              'path' list exceeds days_of_stay
+              'path' list exceeds min_days_of_stay
     Input: x: String of departure with format "%Y-%m-%dT%H:%M:%S" of flight to be appended
            path: List of routes (list) containing flights (dict)
-           days_of_stay: Integer, minimum time (days) difference between two flights that are not in the same route
-    Output: 1 if time difference is greater or equal to the days_of_stay, 0 otherwise
+           min_days_of_stay: Integer, minimum time (days) difference between two flights that are not in the same route
+    Output: 1 if time difference is greater or equal to the min_days_of_stay, 0 otherwise
     """
     if len(path)==1:
         return 1
     elif ((datetime.strptime(x, "%Y-%m-%dT%H:%M:%S") - datetime.strptime(path[0][-1]["arrival"], "%Y-%m-%dT%H:%M:%S"))
-        >=timedelta(days=days_of_stay)):
+        >=timedelta(days=min_days_of_stay)):
         return 1
     return 0
 
@@ -140,13 +140,11 @@ def isTravelTimeCompatible(x, path, max_travel_hours=0):
     Output: 1 if time difference does not exceed max_travel_hours, 0 otherwise
     """
     if max_travel_hours==0:
-        return 1 
+        return 1
     elif len(path[-1])==1:
         if ((datetime.strptime(x["arrival"], "%Y-%m-%dT%H:%M:%S") - datetime.strptime(x["departure"], "%Y-%m-%dT%H:%M:%S"))
             <=timedelta(hours=max_travel_hours)):
             return 1
-        else:
-            return 0
     elif ((datetime.strptime(x["arrival"], "%Y-%m-%dT%H:%M:%S") -
     datetime.strptime(path[-1][1]["departure"], "%Y-%m-%dT%H:%M:%S"))
         <=timedelta(hours=max_travel_hours)):
@@ -208,8 +206,8 @@ def isMultiCityCompatible(x, path, is_multicity, src, dst):
 def isBagCompatible(x, bags):
     """
     Describe: Check if bags allowed on new flight is no lower than number of bags requested by user
-    Input: x: String or integer, number of bags allowed on flight to be appended
-           bags: String or integer, number of bags requested by user
+    Input: x: Integer, number of bags allowed on flight to be appended
+           bags: Integer, number of bags requested by user
     Output: 1 if number of bags allowed on flight is no lower than number of bags requested by user, zero otherwise
     """
     if int(x)>=int(bags):
@@ -269,7 +267,7 @@ def outputFormatter(paths, bags, src, dst, mid_dst, is_return, is_multicity):
 
     return final_paths
 
-def findpaths(g, src, dst, mid_dst, bags, is_return, is_multicity, days_of_stay, max_layover_hours,
+def findpaths(g, src, dst, mid_dst, bags, is_return, is_multicity, min_days_of_stay, max_layover_hours,
               max_travel_hours, max_nr_changes, day_of_departure):
     """
     Describe: Find paths in graph from source to destination using BFS algorithm
@@ -277,10 +275,10 @@ def findpaths(g, src, dst, mid_dst, bags, is_return, is_multicity, days_of_stay,
            src: String, source airport
            dst: String, final destination airport
            mid_dst: String, middle destination airport (when is_multicity==True)
-           bags: String or integer, number of bags requested by user
+           bags: Integer, number of bags requested by user
            is_return: True / False
            is_multicity: True / False
-           days_of_stay: Integer, length of stay at destination/middle destination
+           min_days_of_stay: Integer, minimum length of stay at destination/middle destination
            max_layover_hours: Integer, maximum layover hours between flights
            max_travel_hours: Integer, maximum travel hours in a route
            max_nr_changes: Integer, maximum number of changes in a route
@@ -322,7 +320,7 @@ def findpaths(g, src, dst, mid_dst, bags, is_return, is_multicity, days_of_stay,
             for i in range(len(g[last["destination"]])):
                 if (isNotVisited(g[last["destination"]][i]["destination"], path)
                     & isLayoverCompatible(g[last["destination"]][i]["departure"], path, max_layover_hours)
-                    & isStayLengthCompatible(g[last["destination"]][i]["departure"], path, days_of_stay)
+                    & isStayLengthCompatible(g[last["destination"]][i]["departure"], path, min_days_of_stay)
                     & isTravelTimeCompatible(g[last["destination"]][i], path, max_travel_hours)
                     & isNrChangesCompatible(path, max_nr_changes)
                     & isDepartureDateCompatible(g[last["destination"]][i]["departure"], path, day_of_departure)
@@ -350,7 +348,7 @@ if __name__ == "__main__":
                      'bags_allowed']
 
     [path_to_csv, src, dst, bags,
-    is_return, days_of_stay,
+    is_return, min_days_of_stay,
     max_layover_hours, max_travel_hours,
     max_nr_changes, day_of_departure,
     is_multicity, mid_dst] = parse_arguments()
@@ -410,12 +408,12 @@ if __name__ == "__main__":
 
     # Function for finding the paths
     final_paths_json = findpaths(g, src, dst, mid_dst, bags, is_return,
-                       is_multicity, days_of_stay, max_layover_hours,
+                       is_multicity, min_days_of_stay, max_layover_hours,
                        max_travel_hours, max_nr_changes,
                        day_of_departure)
 
     final_paths = json.loads(final_paths_json)
-    
+
     if len(final_paths) == 0:
         print("No flight combinations match the specified parameters!")
     else:
@@ -428,6 +426,4 @@ if __name__ == "__main__":
         else:
             print("path from src {} to dst {} are".format(
             src, dst))
-        
         print(final_paths_json)
-        print(len(final_paths))
